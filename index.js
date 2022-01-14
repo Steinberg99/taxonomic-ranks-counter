@@ -8,7 +8,12 @@ loadFile();
 function loadFile() {
   fs.readFile("rawData.txt", { encoding: "utf-8" }, function (err, data) {
     if (!err) {
-      parseData(data);
+      const parsedData = d3.shuffle(d3.tsvParse(data));
+      console.log("#Entries in data: ", data.length);
+      const selection = parsedData.slice(0, 50000);
+
+      parseDataToCount(selection);
+      parseDataToIds(selection);
     } else {
       console.log(err);
     }
@@ -16,10 +21,8 @@ function loadFile() {
 }
 
 // Parse the data into the desired form
-function parseData(source) {
-  const data = d3.tsvParse(source);
-  console.log("#Entries in data: ", data.length);
-  const section = data.map(filterProperties);
+function parseDataToCount(data) {
+  const section = data.map(countFilterProperties);
   const countArray = [];
 
   // I know, this code is really bad
@@ -137,13 +140,32 @@ function parseData(source) {
     }
   });
 
-  writeDataFile(countArray);
+  // Write data to file
+  writeDataFile("Count", countArray);
+}
+
+// Parse the data into the desired form
+function parseDataToIds(data) {
+  const section = data.map(idsFilterProperties);
+  const idsArray = [];
+
+  section.forEach((item) => {
+    if (idsArray.some((e) => e.taxonomicRankName === item.genus)) {
+      idsArray
+        .find((e) => e.taxonomicRankName === item.genus)
+        .ids.push(item.id);
+    } else {
+      idsArray.push(createIdObject(item.genus, item.id));
+    }
+  });
+
+  writeDataFile("Ids", idsArray);
 }
 
 // Write the data into a new file
-function writeDataFile(data, fileIndex = 0) {
+function writeDataFile(fileName, data, fileIndex = 0) {
   fs.writeFile(
-    "data_" + fileIndex + ".json",
+    fileName + "_" + fileIndex + ".json",
     JSON.stringify(data, null, 4),
     { encoding: "utf8", flag: "wx" },
     function (err) {
@@ -159,22 +181,40 @@ function writeDataFile(data, fileIndex = 0) {
   );
 }
 
-function filterProperties(item) {
+// Filter properties for the count
+function countFilterProperties(item) {
   return {
     kingdom: item["kingdom"],
     phylum: item["phylum"],
     class: item["class"],
     order: item["order"],
     family: item["family"],
-    genus: item["genus"]
+    genus: item["genus"],
   };
 }
 
+// Filter properties for the ids
+function idsFilterProperties(item) {
+  return {
+    genus: item["genus"],
+    id: item["gbifID"],
+  };
+}
+
+// Create the count object
 function createCountObject(name, rank) {
   return {
     taxonomicRankName: name,
     rank: rank,
     count: 1,
-    children: []
+    children: [],
+  };
+}
+
+// Create the id object
+function createIdObject(rank, id) {
+  return {
+    taxonomicRankName: rank,
+    ids: [id],
   };
 }
